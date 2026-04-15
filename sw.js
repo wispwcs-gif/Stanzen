@@ -1,9 +1,8 @@
 const CACHE_NAME = 'cardscan-cache-v1';
 const urlsToCache = [
-  '/',
-  '/scan.html',
-  '/manifest.json'
-  // здесь можно перечислить все важные файлы стилей и скриптов, если они будут
+  './',
+  './index.html',
+  './manifest.json'
 ];
 
 self.addEventListener('install', event => {

@@ -2,7 +2,7 @@
   "name": "STANZEN CardScan",
   "short_name": "CardScan",
   "description": "Сканер визиток STANZEN",
-  "start_url": "/",
+  "start_url": "./",
   "display": "standalone",
   "background_color": "#f3f6fb",
   "theme_color": "#1769ff",
