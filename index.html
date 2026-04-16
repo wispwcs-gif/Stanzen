@@ -530,32 +530,56 @@
         }
     }
 
-    async function sendEmail() {
-        const name = fieldName.value.trim();
-        const phone = fieldPhone.value.trim();
-        const email = fieldEmail.value.trim();
-        
-        if (!name && !phone && !email) {
-            return setStatus('⚠️ Заполните хотя бы одно поле', true);
-        }
-
-        setStatus('📨 Отправка...');
-        
-        try {
-            await emailjs.send(EMAILJS_SERVICE_ID, EMAILJS_TEMPLATE_ID, {
-                to_email: RECIPIENT,
-                from_name: senderSelect.value,
-                contact_name: name || '—',
-                contact_phone: phone || '—',
-                contact_email: email || '—',
-                raw_text: lastRecognizedText || '',
-                photo_url: photoDataUrl || ''
-            });
-            setStatus('✅ Отправлено!', false, true);
-        } catch (e) {
-            setStatus('❌ Ошибка отправки', true);
-        }
+async function sendEmail() {
+    const name = fieldName.value.trim();
+    const phone = fieldPhone.value.trim();
+    const email = fieldEmail.value.trim();
+    
+    if (!name && !phone && !email) {
+        return setStatus('⚠️ Заполните хотя бы одно поле', true);
     }
+
+    setStatus('📨 Отправка...');
+    
+    // Подготавливаем параметры
+    const templateParams = {
+        to_email: RECIPIENT,
+        from_name: senderSelect.value,
+        contact_name: name || '—',
+        contact_phone: phone || '—',
+        contact_email: email || '—',
+        raw_text: lastRecognizedText || 'нет текста',
+        photo_url: photoDataUrl || ''
+    };
+    
+    // Выводим в консоль для отладки
+    console.log('Отправка на:', RECIPIENT);
+    console.log('Параметры:', templateParams);
+    console.log('Размер фото:', photoDataUrl ? (photoDataUrl.length / 1024).toFixed(0) + ' КБ' : 'нет фото');
+    
+    try {
+        const response = await emailjs.send(
+            EMAILJS_SERVICE_ID, 
+            EMAILJS_TEMPLATE_ID, 
+            templateParams
+        );
+        console.log('✅ Успех:', response);
+        setStatus('✅ Отправлено!', false, true);
+    } catch (e) {
+        console.error('❌ Ошибка EmailJS:', e);
+        console.error('Статус:', e.status);
+        console.error('Текст ошибки:', e.text);
+        
+        // Показываем понятную ошибку
+        let errorMsg = 'Ошибка отправки';
+        if (e.status === 412) errorMsg = '⚠️ Ошибка шаблона (проверьте параметры)';
+        else if (e.status === 400) errorMsg = '⚠️ Неверный запрос';
+        else if (e.status === 403) errorMsg = '⚠️ Неверный PUBLIC_KEY';
+        else if (e.text) errorMsg = e.text;
+        
+        setStatus(errorMsg, true);
+    }
+}
 
     document.getElementById('startCameraBtn').addEventListener('click', openCamera);
     document.getElementById('closeCameraBtn').addEventListener('click', () => { stopCamera(); setStatus('Камера закрыта'); });
