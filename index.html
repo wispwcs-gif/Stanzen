@@ -1,7 +1,6 @@
 <!DOCTYPE html>
 <html lang="ru">
 <head>
-    <link rel="manifest" href="manifest.json" />
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
     <title>STANZEN · CardScan</title>
@@ -203,7 +202,7 @@
             background: #ffffff;
             border-radius: 18px;
             border: 1px solid var(--line);
-            padding: 16px;
+            padding: 12px 16px;
         }
 
         .field-card-full { grid-column: span 2; }
@@ -213,13 +212,39 @@
             text-transform: uppercase;
             color: var(--muted);
             margin-bottom: 8px;
+            display: flex;
+            align-items: center;
+            gap: 8px;
         }
 
-        .field-value {
+        .edit-icon {
+            opacity: 0.5;
+            font-size: 12px;
+        }
+
+        /* Стили для редактируемых полей */
+        .field-input {
+            width: 100%;
             font-size: 16px;
             font-weight: 700;
             color: var(--text);
-            word-break: break-word;
+            border: none;
+            background: transparent;
+            outline: none;
+            padding: 0;
+            font-family: inherit;
+            border-bottom: 2px solid transparent;
+            transition: border-color 0.2s;
+        }
+
+        .field-input:focus {
+            border-bottom-color: var(--blue);
+        }
+
+        .field-input::placeholder {
+            color: var(--muted);
+            font-weight: 400;
+            font-size: 14px;
         }
 
         .status-message {
@@ -294,16 +319,25 @@
 
             <div class="fields-grid">
                 <div class="field-card">
-                    <div class="field-label">👤 Имя / Компания</div>
-                    <div class="field-value" id="fieldName">—</div>
+                    <div class="field-label">
+                        <span>👤 Имя / Компания</span>
+                        <span class="edit-icon">✎</span>
+                    </div>
+                    <input type="text" id="fieldName" class="field-input" placeholder="Введите имя" value="—">
                 </div>
                 <div class="field-card">
-                    <div class="field-label">📞 Телефон</div>
-                    <div class="field-value" id="fieldPhone">—</div>
+                    <div class="field-label">
+                        <span>📞 Телефон</span>
+                        <span class="edit-icon">✎</span>
+                    </div>
+                    <input type="text" id="fieldPhone" class="field-input" placeholder="Введите телефон" value="—">
                 </div>
                 <div class="field-card field-card-full">
-                    <div class="field-label">✉️ Email</div>
-                    <div class="field-value" id="fieldEmail">—</div>
+                    <div class="field-label">
+                        <span>✉️ Email</span>
+                        <span class="edit-icon">✎</span>
+                    </div>
+                    <input type="text" id="fieldEmail" class="field-input" placeholder="Введите email" value="—">
                 </div>
             </div>
         </div>
@@ -341,7 +375,6 @@
 
     let stream = null;
     let lastRecognizedText = '';
-    let parsedData = { name: '', phone: '', email: '' };
     let photoDataUrl = null;
 
     function setStatus(msg, isError = false, isSuccess = false) {
@@ -358,7 +391,6 @@
         cameraControls.style.display = 'none';
     }
 
-    // Сильное сжатие для отправки
     function compressPhotoToDataUrl(file) {
         return new Promise((resolve) => {
             const img = new Image();
@@ -368,7 +400,7 @@
                 
                 let width = img.width;
                 let height = img.height;
-                const maxDim = 400;
+                const maxDim = 500;
                 
                 if (width > maxDim || height > maxDim) {
                     if (width > height) {
@@ -389,28 +421,13 @@
                     
                     const reader = new FileReader();
                     reader.onload = () => {
-                        const dataUrl = reader.result;
-                        const sizeKB = blob.size / 1024;
-                        resolve({ dataUrl, sizeKB });
+                        resolve({
+                            dataUrl: reader.result,
+                            sizeKB: blob.size / 1024
+                        });
                     };
                     reader.readAsDataURL(blob);
-                }, 'image/jpeg', 0.4);
-            };
-            img.src = URL.createObjectURL(file);
-        });
-    }
-
-    async function enhanceForOCR(file) {
-        return new Promise((resolve) => {
-            const img = new Image();
-            img.onload = () => {
-                const canvas = document.createElement('canvas');
-                const ctx = canvas.getContext('2d');
-                canvas.width = img.width * 1.5;
-                canvas.height = img.height * 1.5;
-                ctx.filter = 'contrast(1.5) brightness(1.2) grayscale(1)';
-                ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
-                canvas.toBlob((blob) => resolve(new File([blob], "ocr.jpg", {type: "image/jpeg"})), 'image/jpeg', 0.9);
+                }, 'image/jpeg', 0.5);
             };
             img.src = URL.createObjectURL(file);
         });
@@ -418,32 +435,55 @@
 
     function parseBusinessCard(text) {
         let name = '', phone = '', email = '';
+        
         const emailMatch = text.match(/[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}/);
         if (emailMatch) email = emailMatch[0];
-        const phoneMatch = text.match(/(?:\+7|8)[\s-]?\(?\d{3}\)?[\s-]?\d{3}[\s-]?\d{2}[\s-]?\d{2}/);
-        if (phoneMatch) phone = phoneMatch[0];
-        const lines = text.split('\n').filter(l => l.trim().length > 2);
-        for (let line of lines) {
-            line = line.trim();
-            if (!/\d/.test(line) && !line.includes('@') && line.length > 3) { name = line; break; }
+        
+        const phoneMatch = text.match(/[\d\s\-\(\)\+]{7,}/);
+        if (phoneMatch) {
+            phone = phoneMatch[0].replace(/\s+/g, ' ').trim();
         }
-        return { name: name || 'Не указано', phone: phone || 'Не указано', email: email || 'Не указано' };
+        
+        const lines = text.split('\n').map(l => l.trim()).filter(l => l.length > 2);
+        for (let line of lines) {
+            if (!/[\d@\.]/.test(line) && line.length < 50) {
+                name = line;
+                break;
+            }
+        }
+        
+        if (!name && lines.length > 0) name = lines[0];
+        
+        return { 
+            name: name || '', 
+            phone: phone || '', 
+            email: email || '' 
+        };
     }
 
     async function recognizeImage(file) {
-        ocrProgress.textContent = '🔄';
+        ocrProgress.textContent = '⏳';
+        setStatus('Распознаём текст...');
+        
         try {
-            const enhanced = await enhanceForOCR(file);
-            ocrProgress.textContent = '⏳';
-            const { data: { text } } = await Tesseract.recognize(enhanced, 'rus+eng');
+            const { data: { text } } = await Tesseract.recognize(file, 'rus+eng', {
+                logger: m => {
+                    if (m.status === 'recognizing text') {
+                        ocrProgress.textContent = `${Math.round(m.progress * 100)}%`;
+                    }
+                }
+            });
+            
             ocrProgress.textContent = '✅';
             lastRecognizedText = text;
             ocrRawText.textContent = text || '[не распознано]';
-            parsedData = parseBusinessCard(text);
-            fieldName.textContent = parsedData.name;
-            fieldPhone.textContent = parsedData.phone;
-            fieldEmail.textContent = parsedData.email;
-            setStatus('✅ Распознано', false, true);
+            
+            const parsed = parseBusinessCard(text);
+            fieldName.value = parsed.name || '';
+            fieldPhone.value = parsed.phone || '';
+            fieldEmail.value = parsed.email || '';
+            
+            setStatus('✅ Распознано. Можно редактировать поля.', false, true);
         } catch (e) {
             ocrProgress.textContent = '❌';
             setStatus('Ошибка распознавания', true);
@@ -463,17 +503,13 @@
             stopCamera();
             
             photoPreview.style.display = 'block';
-            photoStatus.textContent = '🗜️ Сжатие...';
             
             const compressed = await compressPhotoToDataUrl(file);
             
             if (compressed) {
                 photoDataUrl = compressed.dataUrl;
                 previewImage.src = compressed.dataUrl;
-                photoStatus.textContent = `✅ ${compressed.sizeKB.toFixed(0)} КБ`;
-            } else {
-                photoDataUrl = null;
-                photoStatus.textContent = '❌ Ошибка';
+                photoStatus.textContent = `${compressed.sizeKB.toFixed(0)} КБ`;
             }
             
             await recognizeImage(file);
@@ -483,7 +519,7 @@
     async function openCamera() {
         try {
             stream = await navigator.mediaDevices.getUserMedia({
-                video: { facingMode: 'environment', width: {ideal: 1280}, height: {ideal: 1280} }
+                video: { facingMode: 'environment', width: 1280, height: 1280 }
             });
             video.srcObject = stream;
             cameraWrapper.style.display = 'block';
@@ -495,27 +531,28 @@
     }
 
     async function sendEmail() {
-        if (!parsedData.name && !parsedData.phone && !parsedData.email) {
-            return setStatus('⚠️ Сначала отсканируйте', true);
+        const name = fieldName.value.trim();
+        const phone = fieldPhone.value.trim();
+        const email = fieldEmail.value.trim();
+        
+        if (!name && !phone && !email) {
+            return setStatus('⚠️ Заполните хотя бы одно поле', true);
         }
 
         setStatus('📨 Отправка...');
-        const sender = senderSelect.value;
-        const photoUrl = photoDataUrl || '';
         
         try {
             await emailjs.send(EMAILJS_SERVICE_ID, EMAILJS_TEMPLATE_ID, {
                 to_email: RECIPIENT,
-                from_name: sender,
-                contact_name: parsedData.name,
-                contact_phone: parsedData.phone,
-                contact_email: parsedData.email,
+                from_name: senderSelect.value,
+                contact_name: name || '—',
+                contact_phone: phone || '—',
+                contact_email: email || '—',
                 raw_text: lastRecognizedText || '',
-                photo_url: photoUrl
+                photo_url: photoDataUrl || ''
             });
-            setStatus('✅ Письмо отправлено!', false, true);
+            setStatus('✅ Отправлено!', false, true);
         } catch (e) {
-            console.error('Ошибка:', e);
             setStatus('❌ Ошибка отправки', true);
         }
     }
@@ -527,25 +564,8 @@
     
     window.addEventListener('beforeunload', () => { if (stream) stream.getTracks().forEach(t => t.stop()); });
 
-    if (!navigator.mediaDevices?.getUserMedia) {
-        setStatus('⚠️ Камера не поддерживается', true);
-    }
-    
     setStatus('📬 Выберите отправителя и отсканируйте');
 })();
-</script>
-<script>
-  if ('serviceWorker' in navigator) {
-    window.addEventListener('load', function() {
-      navigator.serviceWorker.register('./sw.js')
-        .then(function(registration) {
-          console.log('ServiceWorker зарегистрирован:', registration.scope);
-        })
-        .catch(function(err) {
-          console.log('Ошибка регистрации ServiceWorker:', err);
-        });
-    });
-  }
 </script>
 </body>
 </html>
