@@ -222,7 +222,6 @@
             font-size: 12px;
         }
 
-        /* Стили для редактируемых полей */
         .field-input {
             width: 100%;
             font-size: 16px;
@@ -245,6 +244,31 @@
             color: var(--muted);
             font-weight: 400;
             font-size: 14px;
+        }
+
+        /* Поле комментария */
+        .comment-input {
+            width: 100%;
+            padding: 12px 14px;
+            background: #fff;
+            border: 1.5px solid var(--line);
+            border-radius: 14px;
+            font-size: 14px;
+            color: var(--text);
+            outline: none;
+            resize: vertical;
+            min-height: 70px;
+            font-family: inherit;
+            transition: border-color 0.2s;
+        }
+
+        .comment-input:focus {
+            border-color: var(--blue);
+        }
+
+        .comment-input::placeholder {
+            color: var(--muted);
+            font-weight: 400;
         }
 
         .status-message {
@@ -340,6 +364,15 @@
                     <input type="text" id="fieldEmail" class="field-input" placeholder="Введите email" value="—">
                 </div>
             </div>
+
+            <!-- ПОЛЕ КОММЕНТАРИЙ -->
+            <div style="margin-top: 16px;">
+                <div class="field-label" style="margin-bottom: 8px;">
+                    <span>💬 Комментарий</span>
+                    <span class="edit-icon">✎</span>
+                </div>
+                <textarea id="fieldComment" class="comment-input" placeholder="Добавьте комментарий к визитке..."></textarea>
+            </div>
         </div>
 
         <button class="btn btn-blue" id="sendEmailBtn" style="width:100%;">📤 Отправить</button>
@@ -367,6 +400,7 @@
     const fieldName = document.getElementById('fieldName');
     const fieldPhone = document.getElementById('fieldPhone');
     const fieldEmail = document.getElementById('fieldEmail');
+    const fieldComment = document.getElementById('fieldComment');
     const statusDiv = document.getElementById('statusMessage');
     const photoPreview = document.getElementById('photoPreview');
     const previewImage = document.getElementById('previewImage');
@@ -530,56 +564,52 @@
         }
     }
 
-async function sendEmail() {
-    const name = fieldName.value.trim();
-    const phone = fieldPhone.value.trim();
-    const email = fieldEmail.value.trim();
-    
-    if (!name && !phone && !email) {
-        return setStatus('⚠️ Заполните хотя бы одно поле', true);
-    }
+    async function sendEmail() {
+        const name = fieldName.value.trim();
+        const phone = fieldPhone.value.trim();
+        const email = fieldEmail.value.trim();
+        const comment = fieldComment.value.trim();
+        
+        if (!name && !phone && !email) {
+            return setStatus('⚠️ Заполните хотя бы одно поле', true);
+        }
 
-    setStatus('📨 Отправка...');
-    
-    // Подготавливаем параметры
-    const templateParams = {
-        to_email: RECIPIENT,
-        from_name: senderSelect.value,
-        contact_name: name || '—',
-        contact_phone: phone || '—',
-        contact_email: email || '—',
-        raw_text: lastRecognizedText || 'нет текста',
-        photo_url: photoDataUrl || ''
-    };
-    
-    // Выводим в консоль для отладки
-    console.log('Отправка на:', RECIPIENT);
-    console.log('Параметры:', templateParams);
-    console.log('Размер фото:', photoDataUrl ? (photoDataUrl.length / 1024).toFixed(0) + ' КБ' : 'нет фото');
-    
-    try {
-        const response = await emailjs.send(
-            EMAILJS_SERVICE_ID, 
-            EMAILJS_TEMPLATE_ID, 
-            templateParams
-        );
-        console.log('✅ Успех:', response);
-        setStatus('✅ Отправлено!', false, true);
-    } catch (e) {
-        console.error('❌ Ошибка EmailJS:', e);
-        console.error('Статус:', e.status);
-        console.error('Текст ошибки:', e.text);
+        setStatus('📨 Отправка...');
         
-        // Показываем понятную ошибку
-        let errorMsg = 'Ошибка отправки';
-        if (e.status === 412) errorMsg = '⚠️ Ошибка шаблона (проверьте параметры)';
-        else if (e.status === 400) errorMsg = '⚠️ Неверный запрос';
-        else if (e.status === 403) errorMsg = '⚠️ Неверный PUBLIC_KEY';
-        else if (e.text) errorMsg = e.text;
+        const templateParams = {
+            to_email: RECIPIENT,
+            from_name: senderSelect.value,
+            contact_name: name || '—',
+            contact_phone: phone || '—',
+            contact_email: email || '—',
+            comment: comment || '—',
+            raw_text: lastRecognizedText || 'нет текста',
+            photo_url: photoDataUrl || ''
+        };
         
-        setStatus(errorMsg, true);
+        console.log('Отправка на:', RECIPIENT);
+        console.log('Параметры:', templateParams);
+        
+        try {
+            const response = await emailjs.send(
+                EMAILJS_SERVICE_ID, 
+                EMAILJS_TEMPLATE_ID, 
+                templateParams
+            );
+            console.log('✅ Успех:', response);
+            setStatus('✅ Отправлено!', false, true);
+        } catch (e) {
+            console.error('❌ Ошибка EmailJS:', e);
+            
+            let errorMsg = 'Ошибка отправки';
+            if (e.status === 412) errorMsg = '⚠️ Ошибка шаблона (добавьте поле {{comment}})';
+            else if (e.status === 400) errorMsg = '⚠️ Неверный запрос';
+            else if (e.status === 403) errorMsg = '⚠️ Неверный PUBLIC_KEY';
+            else if (e.text) errorMsg = e.text;
+            
+            setStatus(errorMsg, true);
+        }
     }
-}
 
     document.getElementById('startCameraBtn').addEventListener('click', openCamera);
     document.getElementById('closeCameraBtn').addEventListener('click', () => { stopCamera(); setStatus('Камера закрыта'); });
